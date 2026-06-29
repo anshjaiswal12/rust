@@ -709,7 +709,14 @@ impl<'infcx, 'tcx> MirBorrowckCtxt<'_, 'infcx, 'tcx> {
                 .rfind(|bgp| tcx.local_def_id_to_hir_id(bgp.def_id) == gat_hir_id)
                 .is_some()
             {
-                diag.span_note(pred.span, LIMITATION_NOTE);
+                // Only note when the HRTB uses trait bounds that can introduce implied
+                // bounds (e.g. `for<'a> &'a T: Trait`). Pure outlives bounds like
+                // `for<'a> T: 'a` genuinely require `'static`, not a borrowck limitation.
+                let has_trait_bound =
+                    bounds.iter().any(|bound| matches!(bound, GenericBound::Trait(_)));
+                if has_trait_bound {
+                    diag.span_note(pred.span, LIMITATION_NOTE);
+                }
                 return;
             }
             for bound in bounds.iter() {
